@@ -20,16 +20,24 @@
      (let [sha256 (.-sha256 (js/require "@noble/hashes/sha2.js"))]
        (sha256 (if (string? data) (utf8-bytes data) data)))))
 
+(defn- byte-count [bytes]
+  #?(:clj (count bytes)
+     :cljs (alength bytes)))
+
+(defn- byte-at [bytes i]
+  #?(:clj (nth bytes i)
+     :cljs (aget bytes i)))
+
 (defn leading-zeros-on-hash
   "MST layer of `key`: leading zero bits of SHA-256(key), counted in 2-bit
   groups, matching the AT Protocol MST fanout rule."
   [key]
   (let [hash (sha256 key)
-        n (count hash)]
+        n (byte-count hash)]
     (loop [i 0 zeros 0]
       (if (>= i n)
         zeros
-        (let [b (bit-and 0xff (nth hash i))
+        (let [b (bit-and 0xff (byte-at hash i))
               z (cond-> zeros (< b 64) inc (< b 16) inc (< b 4) inc)]
           (if (zero? b) (recur (inc i) (inc z)) z))))))
 
@@ -56,16 +64,17 @@
 (defn leading-zero-bits
   "Independent leading-zero-bit count over bytes. Useful for conformance tests."
   [bytes]
-  (loop [xs (seq bytes) n 0]
-    (if-not xs
+  (let [size (byte-count bytes)]
+    (loop [i 0 n 0]
+      (if (>= i size)
       n
-      (let [b (bit-and 0xff (first xs))]
+        (let [b (bit-and 0xff (byte-at bytes i))]
         (if (zero? b)
-          (recur (next xs) (+ n 8))
+            (recur (inc i) (+ n 8))
           (loop [mask 0x80 c 0]
             (if (zero? (bit-and b mask))
               (recur (bit-shift-right mask 1) (inc c))
-              (+ n c))))))))
+                (+ n c)))))))))
 
 (defn layer-reference
   "Reference implementation for `leading-zeros-on-hash`: floor(leading-zero-bits
