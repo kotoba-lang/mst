@@ -1,0 +1,74 @@
+(ns mst.core
+  "AT Protocol Merkle Search Tree pure primitives.
+
+  This namespace is runtime-neutral CLJC and deliberately contains no CID,
+  DAG-CBOR, CAR, PDS, or app-specific code."
+  (:require [clojure.string :as str])
+  #?(:clj (:import (java.security MessageDigest))))
+
+(defn- utf8-bytes [s]
+  #?(:clj (.getBytes ^String s "UTF-8")
+     :cljs (.encode (js/TextEncoder.) s)))
+
+(defn sha256
+  "SHA-256 bytes for `data`, where data is a string or byte sequence."
+  [data]
+  #?(:clj
+     (.digest (MessageDigest/getInstance "SHA-256")
+              (if (string? data) (utf8-bytes data) (byte-array data)))
+     :cljs
+     (let [sha256 (.-sha256 (js/require "@noble/hashes/sha2.js"))]
+       (sha256 (if (string? data) (utf8-bytes data) data)))))
+
+(defn leading-zeros-on-hash
+  "MST layer of `key`: leading zero bits of SHA-256(key), counted in 2-bit
+  groups, matching the AT Protocol MST fanout rule."
+  [key]
+  (let [hash (sha256 key)
+        n (count hash)]
+    (loop [i 0 zeros 0]
+      (if (>= i n)
+        zeros
+        (let [b (bit-and 0xff (nth hash i))
+              z (cond-> zeros (< b 64) inc (< b 16) inc (< b 4) inc)]
+          (if (zero? b) (recur (inc i) (inc z)) z))))))
+
+(def ^:private key-segment-re #"^[a-zA-Z0-9_~.:-]+$")
+
+(defn key-valid?
+  "An MST key is `<collection>/<rkey>`: exactly two non-empty segments over the
+  AT key charset, total length <= 256."
+  [k]
+  (and (string? k) (<= (count k) 256)
+       (let [parts (str/split k #"/")]
+         (and (= 2 (count parts))
+              (every? #(and (seq %) (re-matches key-segment-re %)) parts)))))
+
+(defn common-prefix-len
+  "Length of the shared leading character prefix of two keys."
+  [a b]
+  (let [n (min (count a) (count b))]
+    (loop [i 0]
+      (if (and (< i n) (= (.charAt ^String a i) (.charAt ^String b i)))
+        (recur (inc i))
+        i))))
+
+(defn leading-zero-bits
+  "Independent leading-zero-bit count over bytes. Useful for conformance tests."
+  [bytes]
+  (loop [xs (seq bytes) n 0]
+    (if-not xs
+      n
+      (let [b (bit-and 0xff (first xs))]
+        (if (zero? b)
+          (recur (next xs) (+ n 8))
+          (loop [mask 0x80 c 0]
+            (if (zero? (bit-and b mask))
+              (recur (bit-shift-right mask 1) (inc c))
+              (+ n c))))))))
+
+(defn layer-reference
+  "Reference implementation for `leading-zeros-on-hash`: floor(leading-zero-bits
+  of SHA-256(key) / 2)."
+  [key]
+  (quot (leading-zero-bits (sha256 key)) 2))
