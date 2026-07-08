@@ -20,7 +20,14 @@
   (is (mst/key-valid? "app.bsky.actor.profile/self"))
   (is (not (mst/key-valid? "app.bsky.feed.post")) "needs collection/rkey")
   (is (not (mst/key-valid? "a//b")) "empty segment")
-  (is (not (mst/key-valid? "a/b/c")) "three segments"))
+  (is (not (mst/key-valid? "a/b/c")) "three segments")
+  (testing "a trailing slash produces an empty rkey segment, same as `a//b`
+            does for the middle one -- str/split's default limit silently
+            drops ONLY trailing empty strings (not interior ones), so this
+            regresses if key-valid? ever drops its explicit -1 limit"
+    (is (not (mst/key-valid? "a/b/")) "trailing slash / empty rkey")
+    (is (not (mst/key-valid? "app.bsky.feed.post/rkey/")) "trailing slash, realistic key")
+    (is (not (mst/key-valid? "a//")) "trailing slash on an already-empty rkey")))
 
 (deftest common-prefix
   (is (= 0 (mst/common-prefix-len "abc" "xyz")))
