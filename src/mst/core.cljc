@@ -48,7 +48,12 @@
   AT key charset, total length <= 256."
   [k]
   (and (string? k) (<= (count k) 256)
-       (let [parts (str/split k #"/")]
+       ;; `-1` limit: str/split silently drops TRAILING empty strings by
+       ;; default (but not interior ones), so "a/b/" would otherwise split
+       ;; to ["a" "b"] -- count 2, wrongly passing -- instead of the real
+       ;; ["a" "b" ""] that the segment-count/non-empty checks below need
+       ;; to see to reject it.
+       (let [parts (str/split k #"/" -1)]
          (and (= 2 (count parts))
               (every? #(and (seq %) (re-matches key-segment-re %)) parts)))))
 
