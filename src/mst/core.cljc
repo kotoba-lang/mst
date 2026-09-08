@@ -3,7 +3,7 @@
 
   This namespace is runtime-neutral CLJC and deliberately contains no CID,
   DAG-CBOR, CAR, PDS, or app-specific code."
-  (:require [clojure.string :as str])
+  (:require [kotoba.lang.text :as str])
   #?(:clj (:import (java.security MessageDigest))))
 
 (defn- utf8-bytes [s]
