@@ -16,7 +16,7 @@ The byte/CID/CAR layer belongs in `kotoba-lang/atproto`, backed by
 ## Test
 
 ```bash
-clojure -M:test
+kbb -M:test
 ```
 
 ## License
